@@ -3,14 +3,15 @@ import { Maze } from './entities/Maze';
 import { Player } from './entities/Player';
 import { Ghost } from './entities/Ghost';
 import { HUD } from './ui/HUD';
-import { Vector2D } from './types';
+import { type Vector2D, CellType } from './types';
+import { MAZE_LAYOUT } from './constants';
 import './style.css';
 
 class Game {
   private engine: Engine;
   private maze: Maze;
   private player: Player;
-  private ghost: Ghost;
+  private ghosts: Ghost[] = [];
   private hud: HUD;
 
   private score = 0;
@@ -22,10 +23,25 @@ class Game {
     this.engine = new Engine();
     this.maze = new Maze(this.engine.scene);
     this.player = new Player(this.engine.scene);
-    this.ghost = new Ghost(this.engine.scene);
     this.hud = new HUD();
 
+    this.spawnGhosts();
     this.animate(0);
+  }
+
+  private spawnGhosts() {
+    const ghostColors = [0xff0000, 0xffb8ff, 0x00ffff, 0xffb852];
+    let colorIdx = 0;
+
+    for (let z = 0; z < MAZE_LAYOUT.length; z++) {
+      for (let x = 0; x < MAZE_LAYOUT[z].length; x++) {
+        if (MAZE_LAYOUT[z][x] === CellType.GHOST_SPAWN) {
+          const ghost = new Ghost(this.engine.scene, { x, z }, ghostColors[colorIdx % ghostColors.length]);
+          this.ghosts.push(ghost);
+          colorIdx++;
+        }
+      }
+    }
   }
 
   private animate(t: number) {
@@ -36,8 +52,9 @@ class Game {
 
     if (!this.gameOver && !this.gameWon) {
       this.player.update(delta, (pos) => this.checkPelletCollision(pos));
-      this.ghost.update(delta);
+      this.ghosts.forEach(ghost => ghost.update(delta));
       this.checkGhostCollision();
+      this.engine.followPlayer(this.player.mesh.position);
     }
 
     this.engine.render();
@@ -59,8 +76,11 @@ class Game {
   }
 
   private checkGhostCollision() {
-    if (this.player.mesh.position.distanceTo(this.ghost.mesh.position) < 0.6) {
-      this.triggerGameOver(false);
+    for (const ghost of this.ghosts) {
+      if (this.player.mesh.position.distanceTo(ghost.mesh.position) < 0.6) {
+        this.triggerGameOver(false);
+        break;
+      }
     }
   }
 

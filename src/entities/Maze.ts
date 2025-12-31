@@ -38,12 +38,14 @@ export class Maze {
     }
 
     private addFloor(scene: THREE.Scene) {
+        const width = MAZE_LAYOUT[0].length;
+        const height = MAZE_LAYOUT.length;
         const floor = new THREE.Mesh(
-            new THREE.PlaneGeometry(20, 20),
+            new THREE.PlaneGeometry(width + 2, height + 2),
             new THREE.MeshStandardMaterial({ color: COLORS.FLOOR })
         );
         floor.rotation.x = -Math.PI / 2;
-        floor.position.set(4, 0, 4);
+        floor.position.set(width / 2 - 0.5, 0, height / 2 - 0.5);
         scene.add(floor);
     }
 

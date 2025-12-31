@@ -5,6 +5,7 @@ export class Engine {
     public scene: THREE.Scene;
     public camera: THREE.PerspectiveCamera;
     public renderer: THREE.WebGLRenderer;
+    private pointLight!: THREE.PointLight;
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -25,10 +26,20 @@ export class Engine {
 
     private setupLighting() {
         this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-        const pointLight = new THREE.PointLight(0xffffff, 1, 100);
-        pointLight.position.set(5, 10, 5);
-        pointLight.castShadow = true;
-        this.scene.add(pointLight);
+        this.pointLight = new THREE.PointLight(0xffffff, 1, 100);
+        this.pointLight.position.set(5, 10, 5);
+        this.pointLight.castShadow = true;
+        this.scene.add(this.pointLight);
+    }
+
+    public followPlayer(targetPos: THREE.Vector3) {
+        // Offset camera from player
+        const offset = new THREE.Vector3(0, 15, 8);
+        this.camera.position.copy(targetPos).add(offset);
+        this.camera.lookAt(targetPos);
+
+        // Move light with player
+        this.pointLight.position.set(targetPos.x, 10, targetPos.z);
     }
 
     private onWindowResize() {

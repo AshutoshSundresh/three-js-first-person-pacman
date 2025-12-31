@@ -1,24 +1,33 @@
 import * as THREE from 'three';
-import { Vector2D, CellType } from '../types';
+import { type Vector2D, CellType } from '../types';
 import { MAZE_LAYOUT, GHOST_SPEED, COLORS } from '../constants';
 
 export class Ghost {
     public mesh: THREE.Mesh;
-    public gridPos: Vector2D = { x: 8, z: 4 };
-    private targetPos: Vector2D = { x: 8, z: 4 };
+    public gridPos: Vector2D;
+    private targetPos: Vector2D;
     private moveDirection: Vector2D = { x: 0, z: 0 };
     private isMoving = false;
 
-    constructor(scene: THREE.Scene) {
+    constructor(scene: THREE.Scene, spawnPos: Vector2D, color: number = COLORS.GHOST) {
+        this.gridPos = { ...spawnPos };
+        this.targetPos = { ...spawnPos };
+
         const geometry = new THREE.CapsuleGeometry(0.3, 0.4, 4, 16);
-        const material = new THREE.MeshStandardMaterial({ color: COLORS.GHOST });
+        const material = new THREE.MeshStandardMaterial({ color });
         this.mesh = new THREE.Mesh(geometry, material);
-        this.mesh.position.set(8, 0.5, 4);
+        this.mesh.position.set(spawnPos.x, 0.5, spawnPos.z);
         scene.add(this.mesh);
     }
 
     private canMove(x: number, z: number): boolean {
-        if (z < 0 || z >= MAZE_LAYOUT.length || x < 0 || x >= MAZE_LAYOUT[0].length) return false;
+        const width = MAZE_LAYOUT[0].length;
+        // Horizontal wrap-around check
+        if (z >= 0 && z < MAZE_LAYOUT.length) {
+            if (x < 0 || x >= width) return true;
+        }
+
+        if (z < 0 || z >= MAZE_LAYOUT.length || x < 0 || x >= width) return false;
         return MAZE_LAYOUT[z][x] !== CellType.WALL;
     }
 
@@ -45,9 +54,17 @@ export class Ghost {
 
             if (Math.abs(this.targetPos.x - this.mesh.position.x) < GHOST_SPEED * delta &&
                 Math.abs(this.targetPos.z - this.mesh.position.z) < GHOST_SPEED * delta) {
-                this.mesh.position.x = this.targetPos.x;
+
+                const width = MAZE_LAYOUT[0].length;
+                let finalX = this.targetPos.x;
+
+                // Wrap around teleport
+                if (finalX < 0) finalX = width - 1;
+                else if (finalX >= width) finalX = 0;
+
+                this.mesh.position.x = finalX;
                 this.mesh.position.z = this.targetPos.z;
-                this.gridPos = { ...this.targetPos };
+                this.gridPos = { x: finalX, z: this.targetPos.z };
                 this.isMoving = false;
             }
         }
