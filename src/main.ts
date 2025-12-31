@@ -1,69 +1,76 @@
-import * as THREE from 'three';
+import { Engine } from './core/Engine';
+import { Maze } from './entities/Maze';
+import { Player } from './entities/Player';
+import { Ghost } from './entities/Ghost';
+import { HUD } from './ui/HUD';
+import { Vector2D } from './types';
 import './style.css';
 
 class Game {
-  private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
-  private renderer: THREE.WebGLRenderer;
-  private cube: THREE.Mesh;
+  private engine: Engine;
+  private maze: Maze;
+  private player: Player;
+  private ghost: Ghost;
+  private hud: HUD;
+
+  private score = 0;
+  private gameOver = false;
+  private gameWon = false;
+  private lastTime = 0;
 
   constructor() {
-    // Scene
-    this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x111111);
+    this.engine = new Engine();
+    this.maze = new Maze(this.engine.scene);
+    this.player = new Player(this.engine.scene);
+    this.ghost = new Ghost(this.engine.scene);
+    this.hud = new HUD();
 
-    // Camera
-    this.camera = new THREE.PerspectiveCamera(
-      75,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      1000
-    );
-    this.camera.position.z = 5;
-
-    // Renderer
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    document.body.appendChild(this.renderer.domElement);
-
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    this.scene.add(ambientLight);
-
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-    directionalLight.position.set(5, 5, 5);
-    this.scene.add(directionalLight);
-
-    // Base Object (Placeholder)
-    const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-    this.cube = new THREE.Mesh(geometry, material);
-    this.scene.add(this.cube);
-
-    // Resize handler
-    window.addEventListener('resize', () => this.onWindowResize());
-
-    // Start Loop
-    this.animate();
+    this.animate(0);
   }
 
-  private onWindowResize() {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+  private animate(t: number) {
+    requestAnimationFrame((time) => this.animate(time));
+
+    const delta = Math.min((t - this.lastTime) / 1000, 0.1);
+    this.lastTime = t;
+
+    if (!this.gameOver && !this.gameWon) {
+      this.player.update(delta, (pos) => this.checkPelletCollision(pos));
+      this.ghost.update(delta);
+      this.checkGhostCollision();
+    }
+
+    this.engine.render();
   }
 
-  private animate() {
-    requestAnimationFrame(() => this.animate());
+  private checkPelletCollision(pos: Vector2D) {
+    this.maze.pellets.children.forEach((pellet: any) => {
+      if (Math.abs(pellet.position.x - pos.x) < 0.1 &&
+        Math.abs(pellet.position.z - pos.z) < 0.1) {
+        this.maze.removePellet(pellet);
+        this.score += 10;
+        this.hud.updateScore(this.score);
 
-    // Basic rotation for testing
-    this.cube.rotation.x += 0.01;
-    this.cube.rotation.y += 0.01;
+        if (this.maze.pellets.children.length === 0) {
+          this.triggerGameOver(true);
+        }
+      }
+    });
+  }
 
-    this.renderer.render(this.scene, this.camera);
+  private checkGhostCollision() {
+    if (this.player.mesh.position.distanceTo(this.ghost.mesh.position) < 0.6) {
+      this.triggerGameOver(false);
+    }
+  }
+
+  private triggerGameOver(victory: boolean) {
+    this.gameOver = !victory;
+    this.gameWon = victory;
+    const msg = victory ? 'YOU WIN!' : 'GAME OVER';
+    const color = victory ? '#00ff00' : '#ff0000';
+    this.hud.showStatus(msg, color);
   }
 }
 
-// Start the game
 new Game();
