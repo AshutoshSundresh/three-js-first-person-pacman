@@ -58,7 +58,7 @@ class Game {
       this.player.update(delta, (pos) => this.checkPelletCollision(pos));
       this.ghosts.forEach(ghost => ghost.update(delta, this.player.gridPos));
       this.checkGhostCollision();
-      this.engine.followPlayer(this.player.mesh.position);
+      this.engine.updateCameras(this.player.mesh.position, this.player.rotation);
     }
 
     this.engine.render();

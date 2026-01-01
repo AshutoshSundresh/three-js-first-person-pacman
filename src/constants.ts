@@ -25,8 +25,8 @@ export const MAZE_LAYOUT = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 ];
 
-export const PLAYER_SPEED = 4;
-export const GHOST_SPEED = 3;
+export const PLAYER_SPEED = 2;
+export const GHOST_SPEED = 1.5;
 
 export const COLORS = {
     WALL: 0x2222ff,
