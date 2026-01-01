@@ -5,7 +5,8 @@ import { MAZE_LAYOUT, PLAYER_SPEED, COLORS } from '../constants';
 export class Player {
     public mesh: THREE.Mesh;
     public gridPos: Vector2D = { x: 1, z: 1 };
-    public rotation = 0; // In radians
+    public rotation = 0; // Current rendered rotation
+    private targetRotation = 0; // The direction we WANT to face
     private targetPos: Vector2D = { x: 1, z: 1 };
     private moveDirection: Vector2D = { x: 0, z: 0 };
     private nextDirection: Vector2D = { x: 0, z: 0 };
@@ -63,6 +64,21 @@ export class Player {
     }
 
     public update(delta: number, onPelletCheck: (pos: Vector2D) => void) {
+        // Interpolate rotation smoothly
+        const rotationSpeed = 10; // Radians per second
+        let angleDiff = this.targetRotation - this.rotation;
+
+        // Wrap angle difference to [-PI, PI]
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+        if (Math.abs(angleDiff) > 0.01) {
+            this.rotation += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), rotationSpeed * delta);
+        } else {
+            this.rotation = this.targetRotation;
+        }
+        this.mesh.rotation.y = this.rotation; // Apply the interpolated rotation to the mesh
+
         if (!this.isMoving) {
             if (this.nextDirection.x !== 0 || this.nextDirection.z !== 0) {
                 if (this.canMove(this.gridPos.x + this.nextDirection.x, this.gridPos.z + this.nextDirection.z)) {
@@ -70,9 +86,9 @@ export class Player {
                     this.targetPos = { x: this.gridPos.x + this.moveDirection.x, z: this.gridPos.z + this.moveDirection.z };
                     this.isMoving = true;
 
-                    // Update rotation based on direction
+                    // Set target rotation based on direction
                     // North: 0, East: PI/2, South: PI, West: -PI/2
-                    this.rotation = Math.atan2(this.moveDirection.x, this.moveDirection.z);
+                    this.targetRotation = Math.atan2(this.moveDirection.x, this.moveDirection.z);
                 } else if (this.canMove(this.gridPos.x + this.moveDirection.x, this.gridPos.z + this.moveDirection.z)) {
                     this.targetPos = { x: this.gridPos.x + this.moveDirection.x, z: this.gridPos.z + this.moveDirection.z };
                     this.isMoving = true;
