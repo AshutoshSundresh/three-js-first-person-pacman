@@ -31,16 +31,20 @@ class Game {
 
   private spawnGhosts() {
     const ghostColors = [0xff0000, 0xffb8ff, 0x00ffff, 0xffb852];
-    let colorIdx = 0;
+    const spawnPoints: Vector2D[] = [];
 
     for (let z = 0; z < MAZE_LAYOUT.length; z++) {
       for (let x = 0; x < MAZE_LAYOUT[z].length; x++) {
         if (MAZE_LAYOUT[z][x] === CellType.GHOST_SPAWN) {
-          const ghost = new Ghost(this.engine.scene, { x, z }, ghostColors[colorIdx % ghostColors.length]);
-          this.ghosts.push(ghost);
-          colorIdx++;
+          spawnPoints.push({ x, z });
         }
       }
+    }
+
+    // Spawn up to 4 ghosts at distinct points
+    for (let i = 0; i < Math.min(ghostColors.length, spawnPoints.length); i++) {
+      const ghost = new Ghost(this.engine.scene, spawnPoints[i], ghostColors[i]);
+      this.ghosts.push(ghost);
     }
   }
 
@@ -52,7 +56,7 @@ class Game {
 
     if (!this.gameOver && !this.gameWon) {
       this.player.update(delta, (pos) => this.checkPelletCollision(pos));
-      this.ghosts.forEach(ghost => ghost.update(delta));
+      this.ghosts.forEach(ghost => ghost.update(delta, this.player.gridPos));
       this.checkGhostCollision();
       this.engine.followPlayer(this.player.mesh.position);
     }

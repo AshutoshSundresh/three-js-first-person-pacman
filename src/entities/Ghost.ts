@@ -5,6 +5,7 @@ import { MAZE_LAYOUT, GHOST_SPEED, COLORS } from '../constants';
 export class Ghost {
     public mesh: THREE.Mesh;
     public gridPos: Vector2D;
+    public color: number;
     private targetPos: Vector2D;
     private moveDirection: Vector2D = { x: 0, z: 0 };
     private isMoving = false;
@@ -12,6 +13,7 @@ export class Ghost {
     constructor(scene: THREE.Scene, spawnPos: Vector2D, color: number = COLORS.GHOST) {
         this.gridPos = { ...spawnPos };
         this.targetPos = { ...spawnPos };
+        this.color = color;
 
         const geometry = new THREE.CapsuleGeometry(0.3, 0.4, 4, 16);
         const material = new THREE.MeshStandardMaterial({ color });
@@ -31,19 +33,56 @@ export class Ghost {
         return MAZE_LAYOUT[z][x] !== CellType.WALL;
     }
 
-    public update(delta: number) {
+    public update(delta: number, playerPos: Vector2D) {
         if (!this.isMoving) {
             const dirs = [{ x: 1, z: 0 }, { x: -1, z: 0 }, { x: 0, z: 1 }, { x: 0, z: -1 }];
-            const validDirs = dirs.filter(d => this.canMove(this.gridPos.x + d.x, this.gridPos.z + d.z));
 
-            let dir = validDirs[Math.floor(Math.random() * validDirs.length)];
-            if (validDirs.some(d => d.x === this.moveDirection.x && d.z === this.moveDirection.z)) {
-                if (Math.random() > 0.2) dir = this.moveDirection;
+            // Filter valid directions (excluding reverse)
+            let validDirs = dirs.filter(d => {
+                const nx = this.gridPos.x + d.x;
+                const nz = this.gridPos.z + d.z;
+                const isReverse = d.x === -this.moveDirection.x && d.z === -this.moveDirection.z;
+                return this.canMove(nx, nz) && (!isReverse || (this.moveDirection.x === 0 && this.moveDirection.z === 0));
+            });
+
+            // If no valid moves without reversing, allow reversing
+            if (validDirs.length === 0) {
+                validDirs = dirs.filter(d => {
+                    const nx = this.gridPos.x + d.x;
+                    const nz = this.gridPos.z + d.z;
+                    return this.canMove(nx, nz);
+                });
             }
 
-            if (dir) {
-                this.moveDirection = dir;
-                this.targetPos = { x: this.gridPos.x + dir.x, z: this.gridPos.z + dir.z };
+            if (validDirs.length > 0) {
+                // Determine target tile based on "personality"
+                let targetTile = { ...playerPos };
+
+                if (this.color === 0xffb8ff) { // Pinky: Ambush (4 tiles ahead)
+                    // We don't have player direction easily, so let's just use some logic
+                    targetTile.x += 4;
+                    targetTile.z += 4;
+                } else if (this.color === 0xffb852) { // Clyde: Random/Scared
+                    const dist = Math.sqrt(Math.pow(this.gridPos.x - playerPos.x, 2) + Math.pow(this.gridPos.z - playerPos.z, 2));
+                    if (dist < 8) targetTile = { x: 0, z: 0 }; // Retreat to corner
+                }
+
+                // Choose direction that minimizes distance to target tile
+                let bestDir = validDirs[0];
+                let minDist = Infinity;
+
+                for (const d of validDirs) {
+                    const nx = this.gridPos.x + d.x;
+                    const nz = this.gridPos.z + d.z;
+                    const dist = Math.sqrt(Math.pow(nx - targetTile.x, 2) + Math.pow(nz - targetTile.z, 2));
+                    if (dist < minDist) {
+                        minDist = dist;
+                        bestDir = d;
+                    }
+                }
+
+                this.moveDirection = bestDir;
+                this.targetPos = { x: this.gridPos.x + bestDir.x, z: this.gridPos.z + bestDir.z };
                 this.isMoving = true;
             }
         }
