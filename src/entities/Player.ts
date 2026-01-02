@@ -3,7 +3,7 @@ import { type Vector2D, CellType } from '../types';
 import { MAZE_LAYOUT, PLAYER_SPEED, COLORS } from '../constants';
 
 export class Player {
-    public mesh: THREE.Mesh;
+    public mesh: THREE.Group; // Changed to Group
     public gridPos: Vector2D = { x: 1, z: 1 };
     public rotation = 0; // Current rendered rotation
     private targetRotation = 0; // The direction we WANT to face
@@ -12,16 +12,57 @@ export class Player {
     private nextDirection: Vector2D = { x: 0, z: 0 };
     private isMoving = false;
 
+    // Animation properties
+    private chompAngle = 0;
+    private chompDirection = 1;
+    private upperJaw!: THREE.Mesh;
+    private lowerJaw!: THREE.Mesh;
+
     constructor(scene: THREE.Scene) {
-        // Create a more "front-facing" mesh or just a sphere
-        const geometry = new THREE.SphereGeometry(0.4, 32, 32);
-        const material = new THREE.MeshStandardMaterial({ color: COLORS.PLAYER });
-        this.mesh = new THREE.Mesh(geometry, material);
-        this.mesh.position.set(1, 0.4, 1);
+        this.mesh = new THREE.Group();
 
-        // Hide player mesh in first person if desired, or keep it as a "body"
-        // this.mesh.visible = false; 
+        const material = new THREE.MeshStandardMaterial({
+            color: COLORS.PLAYER,
+            emissive: COLORS.PLAYER,
+            emissiveIntensity: 0.8, // More vibrant yellow
+            metalness: 0.3,
+            roughness: 0.1
+        });
 
+        // Split sphere for jaws - Reduced radius to 0.45
+        const radius = 0.45;
+        const upperGeo = new THREE.SphereGeometry(radius, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+        this.upperJaw = new THREE.Mesh(upperGeo, material);
+
+        const lowerGeo = new THREE.SphereGeometry(radius, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+        this.lowerJaw = new THREE.Mesh(lowerGeo, material);
+
+        this.mesh.add(this.upperJaw);
+        this.mesh.add(this.lowerJaw);
+
+        // Add Eyes - Adjusted for smaller size
+        const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
+        const eyeGeo = new THREE.SphereGeometry(0.06, 8, 8);
+
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMaterial);
+        leftEye.position.set(0.22, 0.22, 0.28);
+
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMaterial);
+        rightEye.position.set(-0.22, 0.22, 0.28);
+
+        this.mesh.add(leftEye, rightEye);
+
+        this.mesh.position.set(1, radius, 1);
+
+        // Use layers to show only in minimap
+        this.mesh.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                child.layers.set(1);
+            }
+        });
+        this.mesh.layers.set(1);
+
+        this.mesh.visible = true; // Make it visible again
         scene.add(this.mesh);
 
         this.setupInput();
@@ -29,7 +70,7 @@ export class Player {
 
     private setupInput() {
         window.addEventListener('keydown', (e) => {
-            const rot = this.rotation;
+            const rot = this.targetRotation; // Use target rotation for input derivation
             const cos = Math.round(Math.cos(rot));
             const sin = Math.round(Math.sin(rot));
 
@@ -79,6 +120,18 @@ export class Player {
         }
         this.mesh.rotation.y = this.rotation; // Apply the interpolated rotation to the mesh
 
+        // Chomp Animation
+        if (this.isMoving) {
+            this.chompAngle += delta * 15 * this.chompDirection;
+            if (this.chompAngle > 0.6) this.chompDirection = -1;
+            if (this.chompAngle < 0) this.chompDirection = 1;
+        } else {
+            this.chompAngle = 0.2; // Keep mouth slightly open when still
+        }
+
+        this.upperJaw.rotation.x = -this.chompAngle;
+        this.lowerJaw.rotation.x = this.chompAngle;
+
         if (!this.isMoving) {
             if (this.nextDirection.x !== 0 || this.nextDirection.z !== 0) {
                 if (this.canMove(this.gridPos.x + this.nextDirection.x, this.gridPos.z + this.nextDirection.z)) {
@@ -89,9 +142,6 @@ export class Player {
                     // Set target rotation based on direction
                     // North: 0, East: PI/2, South: PI, West: -PI/2
                     this.targetRotation = Math.atan2(this.moveDirection.x, this.moveDirection.z);
-                } else if (this.canMove(this.gridPos.x + this.moveDirection.x, this.gridPos.z + this.moveDirection.z)) {
-                    this.targetPos = { x: this.gridPos.x + this.moveDirection.x, z: this.gridPos.z + this.moveDirection.z };
-                    this.isMoving = true;
                 }
             }
         }
@@ -99,7 +149,6 @@ export class Player {
         if (this.isMoving) {
             this.mesh.position.x += this.moveDirection.x * PLAYER_SPEED * delta;
             this.mesh.position.z += this.moveDirection.z * PLAYER_SPEED * delta;
-            this.mesh.rotation.y = this.rotation;
 
             if (Math.abs(this.targetPos.x - this.mesh.position.x) < PLAYER_SPEED * delta &&
                 Math.abs(this.targetPos.z - this.mesh.position.z) < PLAYER_SPEED * delta) {

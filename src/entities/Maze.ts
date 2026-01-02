@@ -18,15 +18,32 @@ export class Maze {
 
     private generate() {
         const wallGeometry = new THREE.BoxGeometry(GRID_SIZE, GRID_SIZE, GRID_SIZE);
-        const wallMaterial = new THREE.MeshStandardMaterial({ color: COLORS.WALL });
-        const pelletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
-        const pelletMaterial = new THREE.MeshStandardMaterial({ color: COLORS.PELLET });
+        const wallMaterial = new THREE.MeshStandardMaterial({
+            color: 0x000033,
+            emissive: 0x0022ff,
+            emissiveIntensity: 0.5,
+            metalness: 0.9,
+            roughness: 0.1
+        });
+
+        const pelletGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+        const pelletMaterial = new THREE.MeshStandardMaterial({
+            color: COLORS.PELLET
+        });
 
         for (let z = 0; z < MAZE_LAYOUT.length; z++) {
             for (let x = 0; x < MAZE_LAYOUT[z].length; x++) {
                 if (MAZE_LAYOUT[z][x] === CellType.WALL) {
                     const wall = new THREE.Mesh(wallGeometry, wallMaterial);
                     wall.position.set(x, 0.5, z);
+
+                    // Add a glowing rim effect
+                    const wireframe = new THREE.LineSegments(
+                        new THREE.EdgesGeometry(wallGeometry),
+                        new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 })
+                    );
+                    wall.add(wireframe);
+
                     this.walls.add(wall);
                 } else if (MAZE_LAYOUT[z][x] === CellType.PELLET) {
                     const pellet = new THREE.Mesh(pelletGeometry, pelletMaterial);
@@ -40,9 +57,31 @@ export class Maze {
     private addFloor(scene: THREE.Scene) {
         const width = MAZE_LAYOUT[0].length;
         const height = MAZE_LAYOUT.length;
+
+        // Create a grid texture for the floor
+        const size = 512;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext('2d')!;
+        context.fillStyle = '#050505';
+        context.fillRect(0, 0, size, size);
+        context.strokeStyle = '#2200ff';
+        context.lineWidth = 4;
+        context.strokeRect(0, 0, size, size);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(width, height);
+
         const floor = new THREE.Mesh(
             new THREE.PlaneGeometry(width + 2, height + 2),
-            new THREE.MeshStandardMaterial({ color: COLORS.FLOOR })
+            new THREE.MeshStandardMaterial({
+                map: texture,
+                metalness: 0.8,
+                roughness: 0.2
+            })
         );
         floor.rotation.x = -Math.PI / 2;
         floor.position.set(width / 2 - 0.5, 0, height / 2 - 0.5);
