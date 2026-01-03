@@ -7,7 +7,8 @@ export const CellType = {
     EMPTY: 0,
     WALL: 1,
     PELLET: 2,
-    GHOST_SPAWN: 3
+    POWER_PELLET: 3,
+    GHOST_SPAWN: 4
 } as const;
 
 export type CellType = typeof CellType[keyof typeof CellType];

@@ -12,6 +12,17 @@ export class Player {
     private nextDirection: Vector2D = { x: 0, z: 0 };
     private isMoving = false;
 
+    // Super Mode
+    public superMode = false;
+    public superModeTimer = 0;
+
+    // Warp Effect
+    public warpProgress = 0;
+
+    public get isSuper(): boolean {
+        return this.superMode;
+    }
+
     // Animation properties
     private chompAngle = 0;
     private chompDirection = 1;
@@ -150,22 +161,43 @@ export class Player {
             this.mesh.position.x += this.moveDirection.x * PLAYER_SPEED * delta;
             this.mesh.position.z += this.moveDirection.z * PLAYER_SPEED * delta;
 
+            // Overdrive Warp Progress (Approaching edge)
+            const width = MAZE_LAYOUT[0].length;
+            if (this.targetPos.x < 0 || this.targetPos.x >= width) {
+                const distToEdge = Math.abs(this.targetPos.x - this.mesh.position.x);
+                this.warpProgress = Math.max(0, 1 - distToEdge);
+            }
+
             if (Math.abs(this.targetPos.x - this.mesh.position.x) < PLAYER_SPEED * delta &&
                 Math.abs(this.targetPos.z - this.mesh.position.z) < PLAYER_SPEED * delta) {
 
-                const width = MAZE_LAYOUT[0].length;
                 let finalX = this.targetPos.x;
+                let warped = false;
 
-                // Wrap around teleport
-                if (finalX < 0) finalX = width - 1;
-                else if (finalX >= width) finalX = 0;
+                if (finalX < 0) {
+                    finalX = width - 1;
+                    warped = true;
+                } else if (finalX >= width) {
+                    finalX = 0;
+                    warped = true;
+                }
 
                 this.mesh.position.x = finalX;
                 this.mesh.position.z = this.targetPos.z;
                 this.gridPos = { x: finalX, z: this.targetPos.z };
                 this.isMoving = false;
+
+                if (warped) {
+                    this.warpProgress = 1.0; // Max intensity upon arrival
+                }
+
                 onPelletCheck(this.gridPos);
             }
+        }
+
+        // Warp Animation (Progress Decay)
+        if (this.warpProgress > 0) {
+            this.warpProgress = Math.max(0, this.warpProgress - delta * 4);
         }
     }
 }

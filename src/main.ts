@@ -1,10 +1,10 @@
 import { Engine } from './core/Engine';
 import { Maze } from './entities/Maze';
 import { Player } from './entities/Player';
-import { Ghost } from './entities/Ghost';
+import { Ghost, GhostState } from './entities/Ghost'; // Added GhostState import
 import { HUD } from './ui/HUD';
 import { type Vector2D, CellType } from './types';
-import { MAZE_LAYOUT } from './constants';
+import { MAZE_LAYOUT, POWER_PELLET_DURATION } from './constants'; // Added POWER_PELLET_DURATION import
 import './style.css';
 
 class Game {
@@ -55,44 +55,83 @@ class Game {
     this.lastTime = t;
 
     if (!this.gameOver && !this.gameWon) {
-      this.player.update(delta, (pos) => this.checkPelletCollision(pos));
-      this.ghosts.forEach(ghost => ghost.update(delta, this.player.gridPos));
-      this.checkGhostCollision();
+      // Update Super Mode Timer
+      if (this.player.superMode) {
+        this.player.superModeTimer -= delta;
+        if (this.player.superModeTimer <= 0) {
+          this.player.superMode = false;
+          this.ghosts.forEach(g => {
+            if (g.getState() === GhostState.FRIGHTENED) {
+              g.setState(GhostState.CHASE);
+            }
+          });
+        }
+      }
+
+      this.player.update(delta, (pos: Vector2D) => {
+        const cellType = MAZE_LAYOUT[pos.z][pos.x];
+        if (cellType === CellType.PELLET || cellType === CellType.POWER_PELLET) {
+          // Remove pellet from scene
+          // Find the specific pellet mesh to remove
+          const pelletToRemove = this.maze.pellets.children.find((p: any) =>
+            Math.round(p.position.x) === pos.x && Math.round(p.position.z) === pos.z
+          );
+
+          if (pelletToRemove) {
+            this.maze.removePellet(pelletToRemove); // Use the existing removePellet method
+            MAZE_LAYOUT[pos.z][pos.x] = CellType.EMPTY; // Update the layout
+
+            if (cellType === CellType.PELLET) {
+              this.score += 10;
+            } else { // POWER_PELLET
+              this.score += 50;
+              this.player.superMode = true;
+              this.player.superModeTimer = POWER_PELLET_DURATION;
+              this.ghosts.forEach(g => g.setState(GhostState.FRIGHTENED));
+            }
+            this.hud.updateScore(this.score);
+
+            if (this.maze.pellets.children.length === 0) {
+              this.triggerGameOver(true);
+            }
+          }
+        }
+      });
+
+      const superTime = this.player.superMode ? this.player.superModeTimer : 0;
+      this.ghosts.forEach(ghost => {
+        ghost.update(delta, this.player.gridPos, superTime);
+
+        // Collision Check
+        const dist = Math.sqrt(
+          Math.pow(ghost.mesh.position.x - this.player.mesh.position.x, 2) +
+          Math.pow(ghost.mesh.position.z - this.player.mesh.position.z, 2)
+        );
+
+        if (dist < 0.6) { // Collision detected
+          if (ghost.getState() === GhostState.FRIGHTENED) {
+            ghost.setState(GhostState.EATEN);
+            this.score += 200;
+            this.hud.updateScore(this.score);
+          } else if (ghost.getState() === GhostState.CHASE) {
+            this.triggerGameOver(false);
+          }
+        }
+      });
+
       this.engine.updateCameras(this.player.mesh.position, this.player.rotation);
+      this.engine.setWarpEffect(this.player.warpProgress); // Drive Overdrive effect
+      this.maze.update(delta); // Add maze update for pulsing
     }
 
     this.engine.render();
-  }
-
-  private checkPelletCollision(pos: Vector2D) {
-    this.maze.pellets.children.forEach((pellet: any) => {
-      if (Math.abs(pellet.position.x - pos.x) < 0.1 &&
-        Math.abs(pellet.position.z - pos.z) < 0.1) {
-        this.maze.removePellet(pellet);
-        this.score += 10;
-        this.hud.updateScore(this.score);
-
-        if (this.maze.pellets.children.length === 0) {
-          this.triggerGameOver(true);
-        }
-      }
-    });
-  }
-
-  private checkGhostCollision() {
-    for (const ghost of this.ghosts) {
-      if (this.player.mesh.position.distanceTo(ghost.mesh.position) < 0.6) {
-        this.triggerGameOver(false);
-        break;
-      }
-    }
   }
 
   private triggerGameOver(victory: boolean) {
     this.gameOver = !victory;
     this.gameWon = victory;
     const msg = victory ? 'YOU WIN!' : 'GAME OVER';
-    const color = victory ? '#00ff00' : '#ff0000';
+    const color = victory ? '#00ff00' : '#ffb852'; // Use ghost color for loss
     this.hud.showStatus(msg, color);
   }
 }

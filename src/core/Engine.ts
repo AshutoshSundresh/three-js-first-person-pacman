@@ -10,14 +10,16 @@ export class Engine {
     public minimapCamera: THREE.OrthographicCamera;
     public renderer: THREE.WebGLRenderer;
     private composer!: EffectComposer;
+    private bloomPass!: UnrealBloomPass;
     private pointLight!: THREE.PointLight;
+    private baseFOV: number = 75;
 
     constructor() {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(COLORS.BACKGROUND);
 
         // Main First Person Camera
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.camera = new THREE.PerspectiveCamera(this.baseFOV, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.camera.layers.enable(0);
         this.camera.layers.disable(1); // Hide player from main view
 
@@ -45,7 +47,7 @@ export class Engine {
     private setupPostProcessing() {
         const renderScene = new RenderPass(this.scene, this.camera);
 
-        const bloomPass = new UnrealBloomPass(
+        this.bloomPass = new UnrealBloomPass(
             new THREE.Vector2(window.innerWidth, window.innerHeight),
             1.5, // strength
             0.4, // radius
@@ -54,7 +56,7 @@ export class Engine {
 
         this.composer = new EffectComposer(this.renderer);
         this.composer.addPass(renderScene);
-        this.composer.addPass(bloomPass);
+        this.composer.addPass(this.bloomPass);
     }
 
     private setupLighting() {
@@ -89,6 +91,11 @@ export class Engine {
 
         // Update Minimap Camera
         this.minimapCamera.position.set(playerPos.x, 20, playerPos.z);
+        this.minimapCamera.up.set(
+            Math.sin(playerRotation),
+            0,
+            Math.cos(playerRotation)
+        );
         this.minimapCamera.lookAt(playerPos.x, 0, playerPos.z);
 
         // Move light with player
@@ -109,6 +116,15 @@ export class Engine {
 
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.composer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    public setWarpEffect(intensity: number) {
+        // FOV Pulse: 75 -> 110
+        this.camera.fov = this.baseFOV + (intensity * 35);
+        this.camera.updateProjectionMatrix();
+
+        // Bloom Intensity: 1.5 -> 5
+        this.bloomPass.strength = 1.5 + (intensity * 3.5);
     }
 
     public render() {

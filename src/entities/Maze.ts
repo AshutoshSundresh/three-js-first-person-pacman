@@ -5,6 +5,7 @@ import { CellType } from '../types';
 export class Maze {
     public walls: THREE.Group;
     public pellets: THREE.Group;
+    private pulseTime: number = 0;
 
     constructor(scene: THREE.Scene) {
         this.walls = new THREE.Group();
@@ -31,6 +32,13 @@ export class Maze {
             color: COLORS.PELLET
         });
 
+        const powerPelletGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+        const powerPelletMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffff00,
+            emissive: 0xffff00,
+            emissiveIntensity: 2
+        });
+
         for (let z = 0; z < MAZE_LAYOUT.length; z++) {
             for (let x = 0; x < MAZE_LAYOUT[z].length; x++) {
                 if (MAZE_LAYOUT[z][x] === CellType.WALL) {
@@ -49,9 +57,25 @@ export class Maze {
                     const pellet = new THREE.Mesh(pelletGeometry, pelletMaterial);
                     pellet.position.set(x, 0.2, z);
                     this.pellets.add(pellet);
+                } else if (MAZE_LAYOUT[z][x] === CellType.POWER_PELLET) {
+                    const powerPellet = new THREE.Mesh(powerPelletGeometry, powerPelletMaterial);
+                    powerPellet.position.set(x, 0.2, z);
+                    powerPellet.name = 'powerPellet';
+                    this.pellets.add(powerPellet);
                 }
             }
         }
+    }
+
+    public update(delta: number) {
+        // Pulse Power Pellets
+        this.pulseTime += delta * 15;
+        this.pellets.children.forEach(pellet => {
+            if (pellet.name === 'powerPellet') {
+                const s = 1 + Math.sin(this.pulseTime) * 0.3;
+                pellet.scale.set(s, s, s);
+            }
+        });
     }
 
     private addFloor(scene: THREE.Scene) {
