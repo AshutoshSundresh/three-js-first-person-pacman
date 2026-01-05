@@ -3,6 +3,7 @@ import { Maze } from './entities/Maze';
 import { Player } from './entities/Player';
 import { Ghost, GhostState } from './entities/Ghost'; // Added GhostState import
 import { HUD } from './ui/HUD';
+import { ParticleSystem } from './core/Particles';
 import { type Vector2D, CellType } from './types';
 import { MAZE_LAYOUT, POWER_PELLET_DURATION } from './constants'; // Added POWER_PELLET_DURATION import
 import './style.css';
@@ -13,6 +14,7 @@ class Game {
   private player: Player;
   private ghosts: Ghost[] = [];
   private hud: HUD;
+  private particles: ParticleSystem;
 
   private score = 0;
   private gameOver = false;
@@ -24,6 +26,7 @@ class Game {
     this.maze = new Maze(this.engine.scene);
     this.player = new Player(this.engine.scene);
     this.hud = new HUD();
+    this.particles = new ParticleSystem(this.engine.scene);
 
     this.spawnGhosts();
     this.animate(0);
@@ -89,6 +92,8 @@ class Game {
               this.player.superModeTimer = POWER_PELLET_DURATION;
               this.ghosts.forEach(g => g.setState(GhostState.FRIGHTENED));
             }
+
+            this.particles.createBurst(pelletToRemove.position, cellType === CellType.PELLET ? 0xffffff : 0xffd700);
             this.hud.updateScore(this.score);
 
             if (this.maze.pellets.children.length === 0) {
@@ -112,6 +117,7 @@ class Game {
           if (ghost.getState() === GhostState.FRIGHTENED) {
             ghost.setState(GhostState.EATEN);
             this.score += 200;
+            this.particles.createBurst(ghost.mesh.position, 0xffffff, 40, 4);
             this.hud.updateScore(this.score);
           } else if (ghost.getState() === GhostState.CHASE) {
             this.triggerGameOver(false);
@@ -122,6 +128,7 @@ class Game {
       this.engine.updateCameras(this.player.mesh.position, this.player.rotation);
       this.engine.setWarpEffect(this.player.warpProgress); // Drive Overdrive effect
       this.maze.update(delta); // Add maze update for pulsing
+      this.particles.update(delta);
     }
 
     this.engine.render();

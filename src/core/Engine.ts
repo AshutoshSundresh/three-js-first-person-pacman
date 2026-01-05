@@ -12,8 +12,8 @@ export class Engine {
     private composer!: EffectComposer;
     private bloomPass!: UnrealBloomPass;
     private pointLight!: THREE.PointLight;
-    private baseFOV: number = 75;
     public environmentMap!: THREE.CubeTexture;
+    private baseFOV: number = 75;
 
     constructor() {
         this.scene = new THREE.Scene();
