@@ -13,6 +13,7 @@ export class Engine {
     private bloomPass!: UnrealBloomPass;
     private pointLight!: THREE.PointLight;
     private baseFOV: number = 75;
+    public environmentMap!: THREE.CubeTexture;
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -41,7 +42,56 @@ export class Engine {
 
         this.setupPostProcessing();
         this.setupLighting();
+        this.setupEnvironment();
         window.addEventListener('resize', () => this.onWindowResize());
+    }
+
+    private setupEnvironment() {
+        // Create a more abstract procedural cube map for reflections
+        const cubeCanvas = document.createElement('canvas');
+        cubeCanvas.width = 128;
+        cubeCanvas.height = 128;
+        const ctx = cubeCanvas.getContext('2d')!;
+
+        const images: string[] = [];
+        for (let i = 0; i < 6; i++) {
+            // Dark base
+            ctx.fillStyle = '#00000a';
+            ctx.fillRect(0, 0, 128, 128);
+
+            // Add abstract neon "smog" or distant lights
+            for (let j = 0; j < 8; j++) {
+                const x = Math.random() * 128;
+                const y = Math.random() * 128;
+                const w = Math.random() * 50 + 10;
+                const h = Math.random() * 2 + 1;
+
+                const grad = ctx.createLinearGradient(x, y, x + w, y);
+                grad.addColorStop(0, 'rgba(0, 255, 255, 0)');
+                grad.addColorStop(0.5, 'rgba(0, 255, 255, 0.4)');
+                grad.addColorStop(1, 'rgba(0, 255, 255, 0)');
+
+                ctx.fillStyle = grad;
+                ctx.fillRect(x - w / 2, y, w, h);
+            }
+
+            // Add some vertical soft pillars
+            for (let j = 0; j < 3; j++) {
+                const x = Math.random() * 128;
+                const grad = ctx.createLinearGradient(x, 0, x, 128);
+                grad.addColorStop(0, 'rgba(0, 100, 255, 0)');
+                grad.addColorStop(0.5, 'rgba(0, 100, 255, 0.2)');
+                grad.addColorStop(1, 'rgba(0, 100, 255, 0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(x - 5, 0, 10, 128);
+            }
+
+            images.push(cubeCanvas.toDataURL());
+        }
+
+        const loader = new THREE.CubeTextureLoader();
+        this.environmentMap = loader.load(images);
+        this.scene.environment = this.environmentMap;
     }
 
     private setupPostProcessing() {
@@ -49,7 +99,7 @@ export class Engine {
 
         this.bloomPass = new UnrealBloomPass(
             new THREE.Vector2(window.innerWidth, window.innerHeight),
-            1.5, // strength
+            1.1, // Increased from 0.8 for a bit more punch
             0.4, // radius
             0.85 // threshold
         );
@@ -64,12 +114,12 @@ export class Engine {
         this.scene.add(new THREE.HemisphereLight(0x4433aa, 0x111122, 0.5));
 
         // Targetable light for the player
-        this.pointLight = new THREE.PointLight(0xffffff, 2, 10);
+        this.pointLight = new THREE.PointLight(0xffffff, 4, 12); // Increased intensity from 2 to 4, range to 12
         this.pointLight.castShadow = true;
         this.scene.add(this.pointLight);
 
         // Add some localized neon lights for vibe
-        const neonLight = new THREE.PointLight(0x00ffff, 1, 20);
+        const neonLight = new THREE.PointLight(0x00ffff, 2, 20);
         neonLight.position.set(10, 5, 10);
         this.scene.add(neonLight);
     }

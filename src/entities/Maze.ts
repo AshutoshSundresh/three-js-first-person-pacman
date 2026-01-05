@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MAZE_LAYOUT, GRID_SIZE, COLORS } from '../constants';
 import { CellType } from '../types';
+import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 
 export class Maze {
     public walls: THREE.Group;
@@ -20,11 +21,11 @@ export class Maze {
     private generate() {
         const wallGeometry = new THREE.BoxGeometry(GRID_SIZE, GRID_SIZE, GRID_SIZE);
         const wallMaterial = new THREE.MeshStandardMaterial({
-            color: 0x000033,
-            emissive: 0x0022ff,
-            emissiveIntensity: 0.5,
-            metalness: 0.9,
-            roughness: 0.1
+            color: 0x000022,
+            emissive: 0x0033aa, // Brighter base (was 0x001144)
+            emissiveIntensity: 0.2,
+            metalness: 1.0,
+            roughness: 0.1,
         });
 
         const pelletGeometry = new THREE.SphereGeometry(0.1, 16, 16);
@@ -42,16 +43,17 @@ export class Maze {
         for (let z = 0; z < MAZE_LAYOUT.length; z++) {
             for (let x = 0; x < MAZE_LAYOUT[z].length; x++) {
                 if (MAZE_LAYOUT[z][x] === CellType.WALL) {
-                    const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+                    const wall = new THREE.Mesh(wallGeometry, wallMaterial.clone()); // Clone to pulse individually if needed, or keep shared
                     wall.position.set(x, 0.5, z);
 
-                    // Add a glowing rim effect
+                    // Add a glowing rim effect - thinner
                     const wireframe = new THREE.LineSegments(
                         new THREE.EdgesGeometry(wallGeometry),
-                        new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 })
+                        new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 1, transparent: true }) // Linewidth 1
                     );
                     wall.add(wireframe);
 
+                    this.addWallDetails(wall);
                     this.walls.add(wall);
                 } else if (MAZE_LAYOUT[z][x] === CellType.PELLET) {
                     const pellet = new THREE.Mesh(pelletGeometry, pelletMaterial);
@@ -67,14 +69,86 @@ export class Maze {
         }
     }
 
+    private addWallDetails(wall: THREE.Mesh) {
+        const size = GRID_SIZE;
+        const panelMaterial = new THREE.MeshStandardMaterial({
+            color: 0x000033,
+            metalness: 1.0,
+            roughness: 0.2
+        });
+
+        // Add some random inset panels (greebles)
+        for (let i = 0; i < 3; i++) {
+            const panelSize = 0.2 + Math.random() * 0.4;
+            const panelGeom = new THREE.BoxGeometry(panelSize, panelSize, 0.05);
+            const panel = new THREE.Mesh(panelGeom, panelMaterial);
+
+            // Randomly pick a side
+            const side = Math.floor(Math.random() * 4);
+            const offset = (size / 2) + 0.01;
+
+            if (side === 0) panel.position.set(0, (Math.random() - 0.5) * size, offset);
+            if (side === 1) panel.position.set(0, (Math.random() - 0.5) * size, -offset);
+            if (side === 2) { panel.position.set(offset, (Math.random() - 0.5) * size, 0); panel.rotation.y = Math.PI / 2; }
+            if (side === 3) { panel.position.set(-offset, (Math.random() - 0.5) * size, 0); panel.rotation.y = Math.PI / 2; }
+
+            wall.add(panel);
+        }
+
+        // Add random neon circuitry strips
+        const circuitMaterial = new THREE.MeshStandardMaterial({
+            color: 0x00ffff,
+            emissive: 0x00ffff,
+            emissiveIntensity: 0.6, // Increased from 0.4
+            transparent: true
+        });
+
+        for (let i = 0; i < 2; i++) {
+            const isVertical = Math.random() > 0.5;
+            const stripWidth = isVertical ? 0.01 : 0.15 + Math.random() * 0.2; // Thinner
+            const stripHeight = isVertical ? 0.15 + Math.random() * 0.2 : 0.01; // Thinner
+            const stripGeom = new THREE.BoxGeometry(stripWidth, stripHeight, 0.015); // Thinner depth
+            const strip = new THREE.Mesh(stripGeom, circuitMaterial.clone());
+            strip.name = 'neonStrip';
+
+            const side = Math.floor(Math.random() * 4);
+            const offset = (size / 2) + 0.02;
+
+            if (side === 0) strip.position.set((Math.random() - 0.5) * size, (Math.random() - 0.5) * size, offset);
+            if (side === 1) strip.position.set((Math.random() - 0.5) * size, (Math.random() - 0.5) * size, -offset);
+            if (side === 2) { strip.position.set(offset, (Math.random() - 0.5) * size, (Math.random() - 0.5) * size); strip.rotation.y = Math.PI / 2; }
+            if (side === 3) { strip.position.set(-offset, (Math.random() - 0.5) * size, (Math.random() - 0.5) * size); strip.rotation.y = Math.PI / 2; }
+
+            wall.add(strip);
+        }
+    }
+
     public update(delta: number) {
         // Pulse Power Pellets
-        this.pulseTime += delta * 15;
+        this.pulseTime += delta * 4; // Slower master pulse
         this.pellets.children.forEach(pellet => {
             if (pellet.name === 'powerPellet') {
                 const s = 1 + Math.sin(this.pulseTime) * 0.3;
                 pellet.scale.set(s, s, s);
             }
+        });
+
+        // Pulse Wall Neon - more subtle breathing
+        const wallGlow = 0.5 + Math.sin(this.pulseTime * 0.5) * 0.5;
+        this.walls.children.forEach(wall => {
+            if (wall instanceof THREE.Mesh && wall.material instanceof THREE.MeshStandardMaterial) {
+                wall.material.emissiveIntensity = 0.2 + wallGlow * 0.3; // Brighter pulse (0.2 to 0.5)
+            }
+            // Update wireframe intensity
+            wall.children.forEach(child => {
+                if (child instanceof THREE.LineSegments && child.material instanceof THREE.LineBasicMaterial) {
+                    child.material.opacity = 0.4 + wallGlow * 0.3; // 0.4 to 0.7 instead of 0.3 to 1.0
+                }
+                if (child.name === 'neonStrip' && child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+                    child.material.emissiveIntensity = 0.4 + wallGlow * 1.2; // Increased range (0.4 to 1.6)
+                    child.material.opacity = 0.5 + wallGlow * 0.3;
+                }
+            });
         });
     }
 
@@ -82,34 +156,77 @@ export class Maze {
         const width = MAZE_LAYOUT[0].length;
         const height = MAZE_LAYOUT.length;
 
-        // Create a grid texture for the floor
+        const floorGeometry = new THREE.PlaneGeometry(width + 2, height + 2);
+
+        // Use Reflector for real-time reflections - neutral gray
+        const reflector = new Reflector(floorGeometry, {
+            clipBias: 0.003,
+            textureWidth: window.innerWidth * window.devicePixelRatio,
+            textureHeight: window.innerHeight * window.devicePixelRatio,
+            color: 0x666666 // Neutral dark gray
+        });
+
+        reflector.rotation.x = -Math.PI / 2;
+        reflector.position.set(width / 2 - 0.5, -0.01, height / 2 - 0.5);
+        scene.add(reflector);
+
+        // Create a sandblasted fine-grain noise texture
+        const noiseSize = 256;
+        const noiseCanvas = document.createElement('canvas');
+        noiseCanvas.width = noiseSize;
+        noiseCanvas.height = noiseSize;
+        const noiseCtx = noiseCanvas.getContext('2d')!;
+
+        // Neutral gray base
+        noiseCtx.fillStyle = '#222222';
+        noiseCtx.fillRect(0, 0, noiseSize, noiseSize);
+
+        // Dense fine-grain noise
+        for (let i = 0; i < noiseSize; i++) {
+            for (let j = 0; j < noiseSize; j++) {
+                const v = 80 + Math.random() * 40;
+                noiseCtx.fillStyle = `rgba(${v}, ${v}, ${v}, ${0.1 + Math.random() * 0.15})`;
+                noiseCtx.fillRect(i, j, 1, 1);
+            }
+        }
+
+        const noiseTexture = new THREE.CanvasTexture(noiseCanvas);
+        noiseTexture.wrapS = THREE.RepeatWrapping;
+        noiseTexture.wrapT = THREE.RepeatWrapping;
+        noiseTexture.repeat.set(width * 6, height * 6); // Fine tiling
+
+        // Create a neutral digital grid
         const size = 512;
         const canvas = document.createElement('canvas');
         canvas.width = size;
         canvas.height = size;
         const context = canvas.getContext('2d')!;
-        context.fillStyle = '#050505';
-        context.fillRect(0, 0, size, size);
-        context.strokeStyle = '#2200ff';
-        context.lineWidth = 4;
+        context.clearRect(0, 0, size, size);
+        context.strokeStyle = 'rgba(200, 200, 200, 0.1)'; // Neutral soft gray
+        context.lineWidth = 10;
         context.strokeRect(0, 0, size, size);
 
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(width, height);
+        const gridTexture = new THREE.CanvasTexture(canvas);
+        gridTexture.wrapS = THREE.RepeatWrapping;
+        gridTexture.wrapT = THREE.RepeatWrapping;
+        gridTexture.repeat.set(width, height);
 
-        const floor = new THREE.Mesh(
-            new THREE.PlaneGeometry(width + 2, height + 2),
+        const frostedOverlay = new THREE.Mesh(
+            floorGeometry,
             new THREE.MeshStandardMaterial({
-                map: texture,
-                metalness: 0.8,
-                roughness: 0.2
+                color: 0x333333,
+                map: gridTexture,
+                alphaMap: noiseTexture,
+                transparent: true,
+                metalness: 0.1,
+                roughness: 0.85, // High roughness for sandblasted feel
+                emissive: 0x444444, // Neutral emissive
+                emissiveIntensity: 0.1
             })
         );
-        floor.rotation.x = -Math.PI / 2;
-        floor.position.set(width / 2 - 0.5, 0, height / 2 - 0.5);
-        scene.add(floor);
+        frostedOverlay.rotation.x = -Math.PI / 2;
+        frostedOverlay.position.set(width / 2 - 0.5, 0, height / 2 - 0.5);
+        scene.add(frostedOverlay);
     }
 
     public removePellet(pellet: THREE.Object3D) {
