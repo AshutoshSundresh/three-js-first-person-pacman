@@ -72,7 +72,7 @@ export class Maze {
     private addWallDetails(wall: THREE.Mesh) {
         const size = GRID_SIZE;
         const panelMaterial = new THREE.MeshStandardMaterial({
-            color: 0x000033,
+            color: 0x0044ff,
             metalness: 1.0,
             roughness: 0.2
         });
