@@ -24,11 +24,12 @@ export class Maze {
             color: 0x000022,
             emissive: 0x0033aa, // Brighter base (was 0x001144)
             emissiveIntensity: 0.2,
-            metalness: 1.0,
-            roughness: 0.1,
+            metalness: 0.0, // No metalness = no reflections
+            roughness: 1.0, // High roughness = matte, non-reflective
+            envMapIntensity: 0.0, // Disable environment map reflections
         });
 
-        const pelletGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+        const pelletGeometry = new THREE.SphereGeometry(0.05, 16, 16);
         const pelletMaterial = new THREE.MeshStandardMaterial({
             color: COLORS.PELLET
         });
@@ -57,11 +58,11 @@ export class Maze {
                     this.walls.add(wall);
                 } else if (MAZE_LAYOUT[z][x] === CellType.PELLET) {
                     const pellet = new THREE.Mesh(pelletGeometry, pelletMaterial);
-                    pellet.position.set(x, 0.2, z);
+                    pellet.position.set(x, 0.1, z);
                     this.pellets.add(pellet);
                 } else if (MAZE_LAYOUT[z][x] === CellType.POWER_PELLET) {
                     const powerPellet = new THREE.Mesh(powerPelletGeometry, powerPelletMaterial);
-                    powerPellet.position.set(x, 0.2, z);
+                    powerPellet.position.set(x, 0.1, z);
                     powerPellet.name = 'powerPellet';
                     this.pellets.add(powerPellet);
                 }
@@ -73,8 +74,9 @@ export class Maze {
         const size = GRID_SIZE;
         const panelMaterial = new THREE.MeshStandardMaterial({
             color: 0x0044ff,
-            metalness: 1.0,
-            roughness: 0.2
+            metalness: 0.0, // No metalness = no reflections
+            roughness: 1.0, // High roughness = matte
+            envMapIntensity: 0.0 // Disable environment map reflections
         });
 
         // Add some random inset panels (greebles)
@@ -163,7 +165,7 @@ export class Maze {
             clipBias: 0.003,
             textureWidth: window.innerWidth * window.devicePixelRatio,
             textureHeight: window.innerHeight * window.devicePixelRatio,
-            color: 0x666666 // Neutral dark gray
+            color: 0x333333 // Darker gray
         });
 
         reflector.rotation.x = -Math.PI / 2;
@@ -177,15 +179,15 @@ export class Maze {
         noiseCanvas.height = noiseSize;
         const noiseCtx = noiseCanvas.getContext('2d')!;
 
-        // Neutral gray base
-        noiseCtx.fillStyle = '#222222';
+        // Darker gray base
+        noiseCtx.fillStyle = '#111111';
         noiseCtx.fillRect(0, 0, noiseSize, noiseSize);
 
-        // Dense fine-grain noise
+        // Dense fine-grain noise - more opaque
         for (let i = 0; i < noiseSize; i++) {
             for (let j = 0; j < noiseSize; j++) {
-                const v = 80 + Math.random() * 40;
-                noiseCtx.fillStyle = `rgba(${v}, ${v}, ${v}, ${0.1 + Math.random() * 0.15})`;
+                const v = 60 + Math.random() * 30; // Darker
+                noiseCtx.fillStyle = `rgba(${v}, ${v}, ${v}, ${0.2 + Math.random() * 0.2})`; // More opaque
                 noiseCtx.fillRect(i, j, 1, 1);
             }
         }
@@ -214,14 +216,15 @@ export class Maze {
         const frostedOverlay = new THREE.Mesh(
             floorGeometry,
             new THREE.MeshStandardMaterial({
-                color: 0x333333,
+                color: 0x1a1a1a, // Darker
                 map: gridTexture,
                 alphaMap: noiseTexture,
                 transparent: true,
+                opacity: 0.9, // More opaque
                 metalness: 0.1,
                 roughness: 0.85, // High roughness for sandblasted feel
-                emissive: 0x444444, // Neutral emissive
-                emissiveIntensity: 0.1
+                emissive: 0x2a2a2a, // Darker emissive
+                emissiveIntensity: 0.05 // Reduced intensity
             })
         );
         frostedOverlay.rotation.x = -Math.PI / 2;
