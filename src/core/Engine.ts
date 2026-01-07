@@ -13,21 +13,23 @@ export class Engine {
     private bloomPass!: UnrealBloomPass;
     private pointLight!: THREE.PointLight;
     public environmentMap!: THREE.CubeTexture;
-    private baseFOV: number = 75;
+    private baseFOV: number;
 
     constructor() {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(COLORS.BACKGROUND);
+
+        // Set base FOV - higher on mobile for zoomed out view
+        this.baseFOV = this.isMobile() ? 95 : 75;
 
         // Main First Person Camera
         this.camera = new THREE.PerspectiveCamera(this.baseFOV, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.camera.layers.enable(0);
         this.camera.layers.disable(1); // Hide player from main view
 
-        // Minimap Camera (Orthographic)
-        const aspect = window.innerWidth / window.innerHeight;
+        // Minimap Camera (Orthographic) - Use 1:1 aspect ratio since minimap is square
         const d = 5;
-        this.minimapCamera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
+        this.minimapCamera = new THREE.OrthographicCamera(-d, d, d, -d, 1, 1000);
         this.minimapCamera.position.set(10, 20, 10);
         this.minimapCamera.lookAt(10, 0, 10);
         this.minimapCamera.layers.enable(0);
@@ -44,6 +46,12 @@ export class Engine {
         this.setupLighting();
         this.setupEnvironment();
         window.addEventListener('resize', () => this.onWindowResize());
+    }
+
+    private isMobile(): boolean {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+               (window.matchMedia && window.matchMedia('(max-width: 768px) and (pointer: coarse)').matches) ||
+               (window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
     }
 
     private setupEnvironment() {
@@ -157,9 +165,10 @@ export class Engine {
         this.camera.aspect = aspect;
         this.camera.updateProjectionMatrix();
 
+        // Minimap camera uses 1:1 aspect ratio since it's rendered in a square viewport
         const d = 5;
-        this.minimapCamera.left = -d * aspect;
-        this.minimapCamera.right = d * aspect;
+        this.minimapCamera.left = -d;
+        this.minimapCamera.right = d;
         this.minimapCamera.top = d;
         this.minimapCamera.bottom = -d;
         this.minimapCamera.updateProjectionMatrix();

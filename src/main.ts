@@ -3,6 +3,7 @@ import { Maze } from './entities/Maze';
 import { Player } from './entities/Player';
 import { Ghost, GhostState } from './entities/Ghost'; // Added GhostState import
 import { HUD } from './ui/HUD';
+import { Gamepad } from './ui/Gamepad';
 import { ParticleSystem } from './core/Particles';
 import { type Vector2D, CellType } from './types';
 import { MAZE_LAYOUT, POWER_PELLET_DURATION } from './constants'; // Added POWER_PELLET_DURATION import
@@ -26,6 +27,7 @@ class Game {
     this.maze = new Maze(this.engine.scene);
     this.player = new Player(this.engine.scene);
     this.hud = new HUD();
+    new Gamepad(); // Initialize gamepad (sets up mobile controls)
     this.particles = new ParticleSystem(this.engine.scene);
 
     this.spawnGhosts();
