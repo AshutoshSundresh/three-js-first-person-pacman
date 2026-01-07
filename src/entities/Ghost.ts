@@ -77,15 +77,15 @@ export class Ghost {
         const pupilGeo = new THREE.SphereGeometry(0.04, 8, 8);
 
         const leftEye = new THREE.Mesh(eyeGeo, whiteMat);
-        leftEye.position.set(0.12, 0.2, 0.2);
+        leftEye.position.set(0.12, 0.2, 0.25);
         const leftPupil = new THREE.Mesh(pupilGeo, pupilMat);
-        leftPupil.position.set(0, 0, 0.05);
+        leftPupil.position.set(0, 0, 0.07);
         leftEye.add(leftPupil);
 
         const rightEye = new THREE.Mesh(eyeGeo, whiteMat);
-        rightEye.position.set(-0.12, 0.2, 0.2);
+        rightEye.position.set(-0.12, 0.2, 0.25);
         const rightPupil = new THREE.Mesh(pupilGeo, pupilMat);
-        rightPupil.position.set(0, 0, 0.05);
+        rightPupil.position.set(0, 0, 0.07);
         rightEye.add(rightPupil);
 
         this.eyes.add(leftEye, rightEye);
