@@ -13,8 +13,8 @@
 
 ## Screenshots
 
-<img width="2879" height="1459" alt="image" src="https://github.com/user-attachments/assets/23003f77-127e-438c-8619-2d3d0b4eec50" />
-<img width="2879" height="1444" alt="image" src="https://github.com/user-attachments/assets/3583a00d-5f7b-4372-9346-be33080e74bd" />
+<img width="2879" height="1458" alt="Screenshot 2026-01-01 185827" src="https://github.com/user-attachments/assets/65bd45ac-88e3-4886-bb23-6a3bc1ec8f32" />
+<img width="2879" height="1463" alt="image" src="https://github.com/user-attachments/assets/24ae2f1b-461f-42e5-bcc9-b245290ec80f" />
 
 
 ## Architecture
