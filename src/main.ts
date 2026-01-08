@@ -5,25 +5,54 @@ import { Ghost, GhostState } from './entities/Ghost'; // Added GhostState import
 import { HUD } from './ui/HUD';
 import { Gamepad } from './ui/Gamepad';
 import { ParticleSystem } from './core/Particles';
+import { AudioManager } from './core/AudioManager';
+import { SplashScreen } from './ui/SplashScreen';
 import { type Vector2D, CellType } from './types';
 import { MAZE_LAYOUT, POWER_PELLET_DURATION } from './constants'; // Added POWER_PELLET_DURATION import
+import * as THREE from 'three';
 import './style.css';
 
 class Game {
   private engine: Engine;
-  private maze: Maze;
-  private player: Player;
+  private maze!: Maze;
+  private player!: Player;
   private ghosts: Ghost[] = [];
-  private hud: HUD;
-  private particles: ParticleSystem;
+  private hud!: HUD;
+  private particles!: ParticleSystem;
+  private audioManager: AudioManager;
+  private gameStarted = false;
 
   private score = 0;
   private gameOver = false;
   private gameWon = false;
   private lastTime = 0;
+  private previousSuperMode = false;
+  private ghostAudioInstances: Map<Ghost, THREE.PositionalAudio> = new Map();
+  private tilesMovedSinceCheck = 0;
 
   constructor() {
     this.engine = new Engine();
+    this.audioManager = new AudioManager(this.engine.camera, this.engine.scene, '/three-js-first-person-pacman/');
+    
+    // Initialize game asynchronously
+    this.initializeGame().then(() => {
+      // Show splash screen with audio manager reference after audio is loaded
+      new SplashScreen(async () => {
+        // Resume audio context on user gesture (click) - already done by splash screen
+        await this.audioManager.resumeAudioContext();
+        this.startGame();
+      }, this.audioManager);
+    });
+  }
+
+  private async initializeGame() {
+    // Initialize audio
+    await this.audioManager.initialize();
+    await this.audioManager.loadAllSounds();
+  }
+
+  private startGame() {
+    this.gameStarted = true;
     this.maze = new Maze(this.engine.scene);
     this.player = new Player(this.engine.scene);
     this.hud = new HUD();
@@ -31,7 +60,38 @@ class Game {
     this.particles = new ParticleSystem(this.engine.scene);
 
     this.spawnGhosts();
+    this.setupGhostAudio().catch(console.error);
     this.animate(0);
+  }
+
+  private async setupGhostAudio() {
+    // Ensure audio context is resumed before setting up ghost audio
+    await this.audioManager.resumeAudioContext();
+    
+    // Set up positional audio for each ghost - all use ghostNormal
+    for (let i = 0; i < this.ghosts.length; i++) {
+      const ghost = this.ghosts[i];
+      
+      const audio = await this.audioManager.playPositionalSound(
+        'ghostNormal',
+        ghost.mesh.position,
+        0.5,
+        true // Loop the movement sounds
+      );
+      
+      if (audio) {
+        this.ghostAudioInstances.set(ghost, audio);
+        
+        // Ensure it's playing
+        if (!audio.isPlaying) {
+          try {
+            await audio.play();
+          } catch (error) {
+            console.error(`Error playing ghost ${i} audio:`, error);
+          }
+        }
+      }
+    }
   }
 
   private spawnGhosts() {
@@ -59,6 +119,11 @@ class Game {
     const delta = Math.min((t - this.lastTime) / 1000, 0.1);
     this.lastTime = t;
 
+    if (!this.gameStarted) {
+      this.engine.render();
+      return;
+    }
+
     if (!this.gameOver && !this.gameWon) {
       // Update Super Mode Timer
       if (this.player.superMode) {
@@ -73,6 +138,14 @@ class Game {
         }
       }
 
+      // Handle super mode state change
+      if (this.player.superMode && !this.previousSuperMode) {
+        this.audioManager.playSound('ghostTurnBlue', 0.6).catch(console.error);
+      }
+      this.previousSuperMode = this.player.superMode;
+
+      let previousGridPos = { ...this.player.gridPos };
+      
       this.player.update(delta, (pos: Vector2D) => {
         const cellType = MAZE_LAYOUT[pos.z][pos.x];
         if (cellType === CellType.PELLET || cellType === CellType.POWER_PELLET) {
@@ -93,6 +166,7 @@ class Game {
               this.player.superMode = true;
               this.player.superModeTimer = POWER_PELLET_DURATION;
               this.ghosts.forEach(g => g.setState(GhostState.FRIGHTENED));
+              this.audioManager.playSound('ghostTurnBlue', 0.6).catch(console.error);
             }
 
             this.particles.createBurst(pelletToRemove.position, cellType === CellType.PELLET ? 0xffffff : 0xffd700);
@@ -103,7 +177,43 @@ class Game {
             }
           }
         }
+        
+        // Track when player moves to a new tile
+        if (pos.x !== previousGridPos.x || pos.z !== previousGridPos.z) {
+          this.tilesMovedSinceCheck++;
+          previousGridPos = { ...pos };
+        }
       });
+
+      // Manage pellet loop: check tile ahead, then check flag after +2 tiles
+      const playerIsMoving = this.player.moving;
+      const nextTilePos = this.player.nextTilePos;
+      
+      // Check the tile ahead (where player is moving to)
+      const nextTileCellType = MAZE_LAYOUT[nextTilePos.z]?.[nextTilePos.x];
+      const nextTileHasPellet = nextTileCellType === CellType.PELLET;
+      
+      if (playerIsMoving) {
+        // Check tile ahead to control sound
+        if (nextTileHasPellet) {
+          this.audioManager.startPelletLoop().catch(console.error);
+        } else {
+          this.audioManager.stopPelletLoop();
+        }
+        
+        // After moving 2 tiles, check if we should still be playing
+        if (this.tilesMovedSinceCheck >= 2) {
+          const currentCellType = MAZE_LAYOUT[this.player.gridPos.z]?.[this.player.gridPos.x];
+          if (currentCellType !== CellType.PELLET) {
+            this.audioManager.stopPelletLoop();
+          }
+          this.tilesMovedSinceCheck = 0;
+        }
+      } else {
+        // Stop when player stops moving
+        this.audioManager.stopPelletLoop();
+        this.tilesMovedSinceCheck = 0;
+      }
 
       const superTime = this.player.superMode ? this.player.superModeTimer : 0;
       // Optimize ghost update loop - cache player position
@@ -113,7 +223,28 @@ class Game {
       
       for (let i = 0; i < ghostCount; i++) {
         const ghost = this.ghosts[i];
+        const previousState = ghost.getState();
         ghost.update(delta, playerGridPos, superTime);
+
+        // Update ghost positional audio
+        const audioInstance = this.ghostAudioInstances.get(ghost);
+        if (audioInstance) {
+          this.audioManager.updatePositionalSound(
+            audioInstance,
+            ghost.mesh.position
+          );
+        }
+
+        // Handle ghost state changes
+        const currentState = ghost.getState();
+        if (previousState !== currentState) {
+          if (currentState === GhostState.EATEN) {
+            // Play non-positional eating sound
+            this.audioManager.playSound('eatingGhost', 0.7, true).catch(console.error);
+            // Play spatial return home sound at ghost position
+            this.audioManager.playPositionalSound('ghostReturnHome', ghost.mesh.position, 0.5, false).catch(console.error);
+          }
+        }
 
         // Collision Check (optimized - avoid Math.pow, use direct multiplication)
         const dx = ghost.mesh.position.x - playerPos.x;
@@ -126,11 +257,18 @@ class Game {
             this.score += 200;
             this.particles.createBurst(ghost.mesh.position, 0xffffff, 30, 4); // Reduced particle count
             this.hud.updateScore(this.score);
+            // Play non-positional eating sound
+            this.audioManager.playSound('eatingGhost', 0.7, true).catch(console.error);
+            // Play spatial return home sound at ghost position
+            this.audioManager.playPositionalSound('ghostReturnHome', ghost.mesh.position, 0.5, false).catch(console.error);
           } else if (ghost.getState() === GhostState.CHASE) {
             this.triggerGameOver(false);
           }
         }
       }
+
+      // Update audio manager with listener position
+      this.audioManager.update(playerPos);
 
       this.engine.updateCameras(this.player.mesh.position, this.player.rotation);
       this.engine.setWarpEffect(this.player.warpProgress); // Drive Overdrive effect
@@ -147,6 +285,16 @@ class Game {
     const msg = victory ? 'YOU WIN!' : 'GAME OVER';
     const color = victory ? '#00ff00' : '#ffb852'; // Use ghost color for loss
     this.hud.showStatus(msg, color);
+
+    // Stop all sounds before playing win/lose sound
+    this.audioManager.stopAllSounds();
+
+    // Play appropriate sound
+    if (victory) {
+      this.audioManager.playSound('coffeeMusic', 0.6).catch(console.error);
+    } else {
+      this.audioManager.playSound('fail', 0.7).catch(console.error);
+    }
   }
 }
 

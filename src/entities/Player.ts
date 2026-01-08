@@ -23,6 +23,19 @@ export class Player {
         return this.superMode;
     }
 
+    public get moving(): boolean {
+        return this.isMoving;
+    }
+
+    public get nextTilePos(): Vector2D {
+        if (this.isMoving) {
+            return { ...this.targetPos };
+        } else if (this.nextDirection.x !== 0 || this.nextDirection.z !== 0) {
+            return { x: this.gridPos.x + this.nextDirection.x, z: this.gridPos.z + this.nextDirection.z };
+        }
+        return { ...this.gridPos };
+    }
+
     // Animation properties
     private chompAngle = 0;
     private chompDirection = 1;
