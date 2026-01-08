@@ -40,20 +40,20 @@ export class Player {
             roughness: 0.1
         });
 
-        // Split sphere for jaws - Reduced radius to 0.45
+        // Split sphere for jaws - Reduced radius to 0.45 (Reduced segments for performance)
         const radius = 0.45;
-        const upperGeo = new THREE.SphereGeometry(radius, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+        const upperGeo = new THREE.SphereGeometry(radius, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
         this.upperJaw = new THREE.Mesh(upperGeo, material);
 
-        const lowerGeo = new THREE.SphereGeometry(radius, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+        const lowerGeo = new THREE.SphereGeometry(radius, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
         this.lowerJaw = new THREE.Mesh(lowerGeo, material);
 
         this.mesh.add(this.upperJaw);
         this.mesh.add(this.lowerJaw);
 
-        // Add Eyes - Adjusted for smaller size
+        // Add Eyes - Adjusted for smaller size (Reduced segments for performance)
         const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
-        const eyeGeo = new THREE.SphereGeometry(0.06, 8, 8);
+        const eyeGeo = new THREE.SphereGeometry(0.06, 6, 6);
 
         const leftEye = new THREE.Mesh(eyeGeo, eyeMaterial);
         leftEye.position.set(0.22, 0.22, 0.28);

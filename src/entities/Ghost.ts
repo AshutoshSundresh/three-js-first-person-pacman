@@ -33,9 +33,9 @@ export class Ghost {
         this.mesh = new THREE.Group();
         this.body = new THREE.Group();
 
-        // Ghost Body: Hemisphere Top + Cylinder Body
-        const topGeo = new THREE.SphereGeometry(0.3, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-        const bodyGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.4, 32);
+        // Ghost Body: Hemisphere Top + Cylinder Body (Reduced segments for performance)
+        const topGeo = new THREE.SphereGeometry(0.3, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+        const bodyGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.4, 16);
 
         this.bodyMat = new THREE.MeshStandardMaterial({
             color,
@@ -53,8 +53,8 @@ export class Ghost {
         bodyMesh.position.y = 0;
         this.body.add(bodyMesh);
 
-        // Add "Fingers" at the bottom
-        const fingerGeo = new THREE.SphereGeometry(0.1, 8, 8);
+        // Add "Fingers" at the bottom (Reduced segments for performance)
+        const fingerGeo = new THREE.SphereGeometry(0.1, 6, 6);
         const numFingers = 6;
         for (let i = 0; i < numFingers; i++) {
             const finger = new THREE.Mesh(fingerGeo, this.bodyMat);
@@ -73,8 +73,8 @@ export class Ghost {
         this.eyes = new THREE.Group();
         const whiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
         const pupilMat = new THREE.MeshStandardMaterial({ color: 0x0000ff });
-        const eyeGeo = new THREE.SphereGeometry(0.08, 8, 8);
-        const pupilGeo = new THREE.SphereGeometry(0.04, 8, 8);
+        const eyeGeo = new THREE.SphereGeometry(0.08, 6, 6);
+        const pupilGeo = new THREE.SphereGeometry(0.04, 6, 6);
 
         const leftEye = new THREE.Mesh(eyeGeo, whiteMat);
         leftEye.position.set(0.12, 0.2, 0.25);
@@ -166,28 +166,34 @@ export class Ghost {
                 if (this.state === GhostState.EATEN) {
                     targetTile = { ...this.spawnPos };
                 } else if (this.state === GhostState.FRIGHTENED) {
-                    // Choose direction that moves AWAY from player
+                    // Choose direction that moves AWAY from player (optimized - use squared distance)
                     let bestDir = validDirs[0];
-                    let maxDist = -Infinity;
+                    let maxDistSq = -Infinity;
                     for (const d of validDirs) {
-                        const dist = Math.sqrt(Math.pow(this.gridPos.x + d.x - playerPos.x, 2) + Math.pow(this.gridPos.z + d.z - playerPos.z, 2));
-                        if (dist > maxDist) { maxDist = dist; bestDir = d; }
+                        const dx = this.gridPos.x + d.x - playerPos.x;
+                        const dz = this.gridPos.z + d.z - playerPos.z;
+                        const distSq = dx * dx + dz * dz;
+                        if (distSq > maxDistSq) { maxDistSq = distSq; bestDir = d; }
                     }
                     this.moveDirection = bestDir;
                 } else { // CHASE state
                     if (this.baseColor === 0xffb8ff) { targetTile.x += 4; targetTile.z += 4; }
                     else if (this.baseColor === 0xffb852) {
-                        const dist = Math.sqrt(Math.pow(this.gridPos.x - playerPos.x, 2) + Math.pow(this.gridPos.z - playerPos.z, 2));
-                        if (dist < 8) targetTile = { x: 0, z: 0 };
+                        const dx = this.gridPos.x - playerPos.x;
+                        const dz = this.gridPos.z - playerPos.z;
+                        const distSq = dx * dx + dz * dz;
+                        if (distSq < 64) targetTile = { x: 0, z: 0 }; // 8^2 = 64
                     }
                 }
 
-                if (this.state !== GhostState.FRIGHTENED) { // For CHASE and EATEN, find min distance to targetTile
+                if (this.state !== GhostState.FRIGHTENED) { // For CHASE and EATEN, find min distance to targetTile (optimized)
                     let bestDir = validDirs[0];
-                    let minDist = Infinity;
+                    let minDistSq = Infinity;
                     for (const d of validDirs) {
-                        const dist = Math.sqrt(Math.pow(this.gridPos.x + d.x - targetTile.x, 2) + Math.pow(this.gridPos.z + d.z - targetTile.z, 2));
-                        if (dist < minDist) { minDist = dist; bestDir = d; }
+                        const dx = this.gridPos.x + d.x - targetTile.x;
+                        const dz = this.gridPos.z + d.z - targetTile.z;
+                        const distSq = dx * dx + dz * dz;
+                        if (distSq < minDistSq) { minDistSq = distSq; bestDir = d; }
                     }
                     this.moveDirection = bestDir;
                 }

@@ -106,26 +106,31 @@ class Game {
       });
 
       const superTime = this.player.superMode ? this.player.superModeTimer : 0;
-      this.ghosts.forEach(ghost => {
-        ghost.update(delta, this.player.gridPos, superTime);
+      // Optimize ghost update loop - cache player position
+      const playerPos = this.player.mesh.position;
+      const playerGridPos = this.player.gridPos;
+      const ghostCount = this.ghosts.length;
+      
+      for (let i = 0; i < ghostCount; i++) {
+        const ghost = this.ghosts[i];
+        ghost.update(delta, playerGridPos, superTime);
 
-        // Collision Check
-        const dist = Math.sqrt(
-          Math.pow(ghost.mesh.position.x - this.player.mesh.position.x, 2) +
-          Math.pow(ghost.mesh.position.z - this.player.mesh.position.z, 2)
-        );
+        // Collision Check (optimized - avoid Math.pow, use direct multiplication)
+        const dx = ghost.mesh.position.x - playerPos.x;
+        const dz = ghost.mesh.position.z - playerPos.z;
+        const distSq = dx * dx + dz * dz; // Use squared distance to avoid sqrt
 
-        if (dist < 0.6) { // Collision detected
+        if (distSq < 0.36) { // 0.6^2 = 0.36
           if (ghost.getState() === GhostState.FRIGHTENED) {
             ghost.setState(GhostState.EATEN);
             this.score += 200;
-            this.particles.createBurst(ghost.mesh.position, 0xffffff, 40, 4);
+            this.particles.createBurst(ghost.mesh.position, 0xffffff, 30, 4); // Reduced particle count
             this.hud.updateScore(this.score);
           } else if (ghost.getState() === GhostState.CHASE) {
             this.triggerGameOver(false);
           }
         }
-      });
+      }
 
       this.engine.updateCameras(this.player.mesh.position, this.player.rotation);
       this.engine.setWarpEffect(this.player.warpProgress); // Drive Overdrive effect

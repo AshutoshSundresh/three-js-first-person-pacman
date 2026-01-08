@@ -20,6 +20,7 @@ export class Maze {
 
     private generate() {
         const wallGeometry = new THREE.BoxGeometry(GRID_SIZE, GRID_SIZE, GRID_SIZE);
+        // Use shared material instead of cloning for better performance
         const wallMaterial = new THREE.MeshStandardMaterial({
             color: 0x000022,
             emissive: 0x0033aa, // Brighter base (was 0x001144)
@@ -29,12 +30,13 @@ export class Maze {
             envMapIntensity: 0.0, // Disable environment map reflections
         });
 
-        const pelletGeometry = new THREE.SphereGeometry(0.05, 16, 16);
+        // Reduced geometry complexity for pellets
+        const pelletGeometry = new THREE.SphereGeometry(0.05, 8, 8);
         const pelletMaterial = new THREE.MeshStandardMaterial({
             color: COLORS.PELLET
         });
 
-        const powerPelletGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+        const powerPelletGeometry = new THREE.SphereGeometry(0.2, 8, 8);
         const powerPelletMaterial = new THREE.MeshStandardMaterial({
             color: 0xffff00,
             emissive: 0xffff00,
@@ -44,13 +46,15 @@ export class Maze {
         for (let z = 0; z < MAZE_LAYOUT.length; z++) {
             for (let x = 0; x < MAZE_LAYOUT[z].length; x++) {
                 if (MAZE_LAYOUT[z][x] === CellType.WALL) {
-                    const wall = new THREE.Mesh(wallGeometry, wallMaterial.clone()); // Clone to pulse individually if needed, or keep shared
+                    // Use shared material for better performance (we'll update emissive globally in update())
+                    const wall = new THREE.Mesh(wallGeometry, wallMaterial);
                     wall.position.set(x, 0.5, z);
 
-                    // Add a glowing rim effect - thinner
+                    // Add a glowing rim effect - thinner (use shared material for wireframes)
+                    const wireframeMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true });
                     const wireframe = new THREE.LineSegments(
                         new THREE.EdgesGeometry(wallGeometry),
-                        new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 1, transparent: true }) // Linewidth 1
+                        wireframeMaterial
                     );
                     wall.add(wireframe);
 
@@ -72,6 +76,7 @@ export class Maze {
 
     private addWallDetails(wall: THREE.Mesh) {
         const size = GRID_SIZE;
+        // Use shared materials for better performance
         const panelMaterial = new THREE.MeshStandardMaterial({
             color: 0x0044ff,
             metalness: 0.0, // No metalness = no reflections
@@ -79,8 +84,8 @@ export class Maze {
             envMapIntensity: 0.0 // Disable environment map reflections
         });
 
-        // Add some random inset panels (greebles)
-        for (let i = 0; i < 3; i++) {
+        // Add some random inset panels (greebles) - Reduced from 3 to 2 for performance
+        for (let i = 0; i < 2; i++) {
             const panelSize = 0.2 + Math.random() * 0.4;
             const panelGeom = new THREE.BoxGeometry(panelSize, panelSize, 0.05);
             const panel = new THREE.Mesh(panelGeom, panelMaterial);
@@ -97,7 +102,7 @@ export class Maze {
             wall.add(panel);
         }
 
-        // Add random neon circuitry strips
+        // Add random neon circuitry strips (use shared material)
         const circuitMaterial = new THREE.MeshStandardMaterial({
             color: 0x00ffff,
             emissive: 0x00ffff,
@@ -105,12 +110,13 @@ export class Maze {
             transparent: true
         });
 
-        for (let i = 0; i < 2; i++) {
+        // Reduced from 2 to 1 strip per wall for performance
+        for (let i = 0; i < 1; i++) {
             const isVertical = Math.random() > 0.5;
             const stripWidth = isVertical ? 0.01 : 0.15 + Math.random() * 0.2; // Thinner
             const stripHeight = isVertical ? 0.15 + Math.random() * 0.2 : 0.01; // Thinner
             const stripGeom = new THREE.BoxGeometry(stripWidth, stripHeight, 0.015); // Thinner depth
-            const strip = new THREE.Mesh(stripGeom, circuitMaterial.clone());
+            const strip = new THREE.Mesh(stripGeom, circuitMaterial);
             strip.name = 'neonStrip';
 
             const side = Math.floor(Math.random() * 4);
@@ -128,30 +134,38 @@ export class Maze {
     public update(delta: number) {
         // Pulse Power Pellets
         this.pulseTime += delta * 4; // Slower master pulse
-        this.pellets.children.forEach(pellet => {
-            if (pellet.name === 'powerPellet') {
-                const s = 1 + Math.sin(this.pulseTime) * 0.3;
-                pellet.scale.set(s, s, s);
-            }
-        });
+        const powerPellets = this.pellets.children.filter(p => p.name === 'powerPellet');
+        const pulseScale = 1 + Math.sin(this.pulseTime) * 0.3;
+        for (let i = 0; i < powerPellets.length; i++) {
+            powerPellets[i].scale.setScalar(pulseScale);
+        }
 
-        // Pulse Wall Neon - more subtle breathing
+        // Pulse Wall Neon - more subtle breathing (optimized loop)
         const wallGlow = 0.5 + Math.sin(this.pulseTime * 0.5) * 0.5;
-        this.walls.children.forEach(wall => {
+        const emissiveIntensity = 0.2 + wallGlow * 0.3;
+        const wireframeOpacity = 0.4 + wallGlow * 0.3;
+        const neonIntensity = 0.4 + wallGlow * 1.2;
+        const neonOpacity = 0.5 + wallGlow * 0.3;
+        
+        // Cache wall count to avoid repeated property access
+        const wallCount = this.walls.children.length;
+        for (let i = 0; i < wallCount; i++) {
+            const wall = this.walls.children[i];
             if (wall instanceof THREE.Mesh && wall.material instanceof THREE.MeshStandardMaterial) {
-                wall.material.emissiveIntensity = 0.2 + wallGlow * 0.3; // Brighter pulse (0.2 to 0.5)
+                wall.material.emissiveIntensity = emissiveIntensity;
             }
-            // Update wireframe intensity
-            wall.children.forEach(child => {
+            // Update wireframe and neon strip intensity (optimized)
+            const childCount = wall.children.length;
+            for (let j = 0; j < childCount; j++) {
+                const child = wall.children[j];
                 if (child instanceof THREE.LineSegments && child.material instanceof THREE.LineBasicMaterial) {
-                    child.material.opacity = 0.4 + wallGlow * 0.3; // 0.4 to 0.7 instead of 0.3 to 1.0
+                    child.material.opacity = wireframeOpacity;
+                } else if (child.name === 'neonStrip' && child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+                    child.material.emissiveIntensity = neonIntensity;
+                    child.material.opacity = neonOpacity;
                 }
-                if (child.name === 'neonStrip' && child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
-                    child.material.emissiveIntensity = 0.4 + wallGlow * 1.2; // Increased range (0.4 to 1.6)
-                    child.material.opacity = 0.5 + wallGlow * 0.3;
-                }
-            });
-        });
+            }
+        }
     }
 
     private addFloor(scene: THREE.Scene) {
@@ -160,11 +174,13 @@ export class Maze {
 
         const floorGeometry = new THREE.PlaneGeometry(width + 2, height + 2);
 
-        // Use Reflector for real-time reflections - neutral gray
+        // Use Reflector for real-time reflections - neutral gray (reduced resolution for performance)
+        const pixelRatio = Math.min(window.devicePixelRatio, 2);
+        const reflectionResolution = Math.min(window.innerWidth, window.innerHeight) * pixelRatio * 0.5; // 50% resolution
         const reflector = new Reflector(floorGeometry, {
             clipBias: 0.003,
-            textureWidth: window.innerWidth * window.devicePixelRatio,
-            textureHeight: window.innerHeight * window.devicePixelRatio,
+            textureWidth: reflectionResolution,
+            textureHeight: reflectionResolution,
             color: 0x333333 // Darker gray
         });
 

@@ -35,10 +35,16 @@ export class Engine {
         this.minimapCamera.layers.enable(0);
         this.minimapCamera.layers.enable(1); // Show player in minimap
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.renderer.setPixelRatio(window.devicePixelRatio);
+        // Limit pixel ratio for better performance (cap at 2 for high-DPI displays)
+        const pixelRatio = Math.min(window.devicePixelRatio, 2);
+        this.renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            powerPreference: 'high-performance' // Prefer performance over quality
+        });
+        this.renderer.setPixelRatio(pixelRatio);
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Use faster shadow map type
         this.renderer.autoClear = false; // Important for multiple viewports
         document.body.appendChild(this.renderer.domElement);
 
@@ -105,8 +111,14 @@ export class Engine {
     private setupPostProcessing() {
         const renderScene = new RenderPass(this.scene, this.camera);
 
+        // Reduce bloom resolution for better performance (render at 50% resolution)
+        const bloomResolution = new THREE.Vector2(
+            Math.floor(window.innerWidth * 0.5),
+            Math.floor(window.innerHeight * 0.5)
+        );
+        
         this.bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            bloomResolution,
             1.1, // Increased from 0.8 for a bit more punch
             0.4, // radius
             0.85 // threshold
@@ -175,6 +187,12 @@ export class Engine {
 
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.composer.setSize(window.innerWidth, window.innerHeight);
+        // Update bloom resolution on resize
+        const bloomResolution = new THREE.Vector2(
+            Math.floor(window.innerWidth * 0.5),
+            Math.floor(window.innerHeight * 0.5)
+        );
+        this.bloomPass.setSize(bloomResolution.x, bloomResolution.y);
     }
 
     public setWarpEffect(intensity: number) {
