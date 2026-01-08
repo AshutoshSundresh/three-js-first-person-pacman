@@ -8,6 +8,7 @@
 - Post-processing pipeline: UnrealBloomPass with dynamic intensity tied to player speed/warp effects
 - Procedural environment maps: canvas-generated cube textures for real-time reflections
 - Ghost AI: pathfinding with distinct behaviors (chase, frightened, eaten) and screen-edge warp distortion
+- Spatial audio: THREE.PositionalAudio with distance-based volume falloff for immersive 3D sound
 - Real-time reflections: Reflector-based floor with procedural noise textures
 - Dynamic FOV/bloom: camera effects intensify during screen-edge warping
 
